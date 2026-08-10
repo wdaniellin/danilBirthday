@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Birthday Aquarium</title>
+  <style>
+    :root {
+      --bg-top: #0e3854;
+      --bg-bottom: #02121e;
+      --modal-bg: rgba(14, 30, 45, 0.95);
+      --text-color: #f0f8ff;
+      --accent: #38bdf8;
+    }
+
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: linear-gradient(to bottom, var(--bg-top), var(--bg-bottom));
+      color: var(--text-color);
+      position: relative;
+    }
+
+    /* Aquarium Container */
+    #aquarium {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    /* Floating Bubbles */
+    .bubble {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      bottom: -20px;
+      animation: rise 8s infinite ease-in;
+      pointer-events: none;
+    }
+
+    @keyframes rise {
+      0% { transform: translateY(0) scale(1); opacity: 0.6; }
+      100% { transform: translateY(-105vh) scale(1.5); opacity: 0; }
+    }
+
+    /* Outer Wrapper handles x/y translation */
+    .fish-wrapper {
+      position: absolute;
+      top: 0;
+      left: 0;
+      cursor: pointer;
+      user-select: none;
+      z-index: 5;
+      will-change: transform;
+    }
+
+    /* Inner Body handles scaling, direction flipping, and smooth hover zoom */
+    .fish-body {
+      transition: transform 0.2s ease, filter 0.2s ease;
+      filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3));
+      display: inline-block;
+    }
+
+    .fish-wrapper:hover .fish-body {
+      filter: drop-shadow(0px 0px 12px var(--accent));
+    }
+
+    .fish-image {
+      width: 80px;
+      height: 50px;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Tooltip */
+    .fish-tooltip {
+      position: absolute;
+      top: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .fish-wrapper:hover .fish-tooltip { 
+      opacity: 1; 
+    }
+
+    /* UI Layer */
+    .ui-layer {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .ui-layer * { pointer-events: auto; }
+
+    h1 { 
+      font-size: 1.5rem; 
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5); 
+    }
+
+    .btn {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn:hover { 
+      background: #0369a1; 
+      transform: translateY(-2px); 
+    }
+
+    /* Modal Overlay & Card */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: var(--modal-bg);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 24px;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 440px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+
+    .modal h2 { margin-bottom: 12px; color: var(--accent); }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; margin-bottom: 4px; font-size: 0.85rem; }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.05);
+      color: white;
+      outline: none;
+    }
+
+    .form-group textarea { height: 70px; resize: none; }
+
+    /* Canvas Drawing Area */
+    .draw-container {
+      background: rgba(0,0,0,0.3);
+      border: 1px dashed rgba(255,255,255,0.3);
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    canvas {
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .canvas-tools {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 8px;
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .color-picker-group {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .color-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.5);
+      cursor: pointer;
+    }
+
+    .color-btn.active {
+      border-color: #fff;
+      transform: scale(1.2);
+    }
+
+    .btn-sm {
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      border-radius: 12px;
+    }
+
+    .draw-hint {
+      position: absolute;
+      top: 15px;
+      right: 18px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.5);
+      pointer-events: none;
+    }
+
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+    .btn-secondary { background: transparent; border: 1px solid rgba(255,255,255,0.3); }
+  </style>
+</head>
+<body>
+
+  <div class="ui-layer">
+    <h1>🎂 Birthday Aquarium</h1>
+    <button class="btn" id="openFormBtn">+ Leave a Birthday Wish</button>
+  </div>
+
+  <div id="aquarium"></div>
+
+  <!-- Modal: View Message -->
+  <div class="modal-overlay" id="viewModal">
+    <div class="modal">
+      <h2 id="viewName">From: Friend</h2>
+      <p id="viewMessage" style="margin: 12px 0; line-height: 1.5; color: #e2e8f0;"></p>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('viewModal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add Wish -->
+  <div class="modal-overlay" id="addModal">
+    <div class="modal">
+      <h2>Add Your Fish</h2>
+      <div class="form-group">
+        <label>Your Name</label>
+        <input type="text" id="inputName" placeholder="e.g. Alex" />
+      </div>
+      <div class="form-group">
+        <label>Birthday Wish</label>
+        <textarea id="inputMessage" placeholder="Write something sweet..."></textarea>
+      </div>
+
+      <!-- Drawing Pad -->
+      <div class="form-group">
+        <label>Draw Your Fish</label>
+        <div class="draw-container">
+          <span class="draw-hint">Head points RIGHT →</span>
+          <canvas id="paintCanvas" width="360" height="150"></canvas>
+          <div class="canvas-tools">
+            <div class="color-picker-group">
+              <div class="color-btn active" style="background: #f97316" onclick="setBrushColor('#f97316', this)"></div>
+              <div class="color-btn" style="background: #eab308" onclick="setBrushColor('#eab308', this)"></div>
+              <div class="color-btn" style="background: #06b6d4" onclick="setBrushColor('#06b6d4', this)"></div>
+              <div class="color-btn" style="background: #a855f7" onclick="setBrushColor('#a855f7', this)"></div>
+              <div class="color-btn" style="background: #ec4899" onclick="setBrushColor('#ec4899', this)"></div>
+              <div class="color-btn" style="background: #ffffff" onclick="setBrushColor('#ffffff', this)"></div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="clearCanvas()">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal('addModal')">Cancel</button>
+        <button class="btn" id="submitFishBtn">Release Fish</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const aquarium = document.getElementById('aquarium');
+    const canvas = document.getElementById('paintCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let isDrawing = false;
+    let currentColor = '#f97316';
+
+    // Set up canvas drawing listeners
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    function getCanvasPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+      };
+    }
+
+    function startDrawing(e) {
+      isDrawing = true;
+      const pos = getCanvasPos(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+      const pos = getCanvasPos(e);
+      ctx.strokeStyle = currentColor;
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    }
+
+    function stopDrawing() { isDrawing = false; }
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseleave', stopDrawing);
+
+    canvas.addEventListener('touchstart', startDrawing);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDrawing);
+
+    function setBrushColor(color, el) {
+      currentColor = color;
+      document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Default SVG template for fallback / initial state
+    function createSVGDataURL(color) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="50" viewBox="0 0 60 40">
+        <path d="M 10 20 C 20 5, 45 5, 55 20 C 45 35, 20 35, 10 20 Z" fill="${color}" />
+        <path d="M 10 20 L 0 5 L 0 35 Z" fill="${color}" />
+        <circle cx="45" cy="15" r="3" fill="white" />
+        <circle cx="46" cy="15" r="1.5" fill="black" />
+      </svg>`;
+      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    }
+
+    // Load initial fish data or fallback
+    let fishes = JSON.parse(localStorage.getItem('birthday_fishes')) || [
+      { id: 1, name: "Sam", message: "Happy Birthday! Hope your year is amazing! 🥳", image: createSVGDataURL("#f97316"), x: 100, y: 150, speed: 1.2, direction: 1, waveOffset: Math.random() * 100 },
+      { id: 2, name: "Jordan", message: "Wish I could party with you today! Have a blast!", image: createSVGDataURL("#06b6d4"), x: 300, y: 300, speed: 0.8, direction: -1, waveOffset: Math.random() * 100 },
+      { id: 3, name: "Taylor", message: "Another year wiser! Keep shining ⭐", image: createSVGDataURL("#a855f7"), x: 500, y: 200, speed: 1.5, direction: 1, waveOffset: Math.random() * 100 }
+    ];
+
+    let isHoveredMap = {};
+
+    function renderFishes() {
+      aquarium.querySelectorAll('.fish-wrapper').forEach(el => el.remove());
+      
+      fishes.forEach((fish) => {
+        const fishEl = document.createElement('div');
+        fishEl.className = 'fish-wrapper';
+        fishEl.id = `fish-${fish.id}`;
+        
+        fishEl.innerHTML = `
+          <div class="fish-body">
+            <img src="${fish.image}" class="fish-image" alt="fish" />
+          </div>
+          <div class="fish-tooltip">From: ${fish.name}</div>
+        `;
+
+        fishEl.onmouseenter = () => { isHoveredMap[fish.id] = true; };
+        fishEl.onmouseleave = () => { isHoveredMap[fish.id] = false; };
+
+        fishEl.onclick = () => {
+          document.getElementById('viewName').innerText = `From: ${fish.name}`;
+          document.getElementById('viewMessage').innerText = `"${fish.message}"`;
+          openModal('viewModal');
+        };
+
+        aquarium.appendChild(fishEl);
+      });
+    }
+
+    // Animation Loop
+    let step = 0;
+    function animate() {
+      step += 0.03;
+      const width = window.innerWidth;
+
+      fishes.forEach(fish => {
+        fish.x += fish.speed * fish.direction;
+        
+        if (fish.x > width - 90) {
+          fish.direction = -1;
+        } else if (fish.x < 10) {
+          fish.direction = 1;
+        }
+
+        const floatY = fish.y + Math.sin(step + (fish.waveOffset || 0)) * 12;
+
+        const wrapper = document.getElementById(`fish-${fish.id}`);
+        if (wrapper) {
+          wrapper.style.transform = `translate3d(${fish.x}px, ${floatY}px, 0)`;
+          
+          const body = wrapper.querySelector('.fish-body');
+          if (body) {
+            const scaleX = fish.direction === 1 ? 1 : -1;
+            const hoverScale = isHoveredMap[fish.id] ? 1.25 : 1.0;
+            body.style.transform = `scale(${hoverScale}) scaleX(${scaleX})`;
+          }
+        }
+      });
+      requestAnimationFrame(animate);
+    }
+
+    // Bubbles
+    function createBubbles() {
+      for(let i = 0; i < 15; i++) {
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        const size = Math.random() * 12 + 6;
+        bubble.style.width = `${size}px`;
+        bubble.style.height = `${size}px`;
+        bubble.style.left = `${Math.random() * 100}%`;
+        bubble.style.animationDuration = `${Math.random() * 5 + 5}s`;
+        bubble.style.animationDelay = `${Math.random() * 5}s`;
+        document.body.appendChild(bubble);
+      }
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+    document.getElementById('openFormBtn').onclick = () => {
+      clearCanvas();
+      openModal('addModal');
+    };
+
+    // Helper to check if canvas is blank
+    function isCanvasBlank(c) {
+      const blank = document.createElement('canvas');
+      blank.width = c.width;
+      blank.height = c.height;
+      return c.toDataURL() === blank.toDataURL();
+    }
+
+    // Submit Wish & Custom Fish
+    document.getElementById('submitFishBtn').onclick = () => {
+      const name = document.getElementById('inputName').value.trim();
+      const message = document.getElementById('inputMessage').value.trim();
+
+      if(!name || !message) {
+        alert('Please fill out both your name and message!');
+        return;
+      }
+
+      // Convert drawing to image data URL, or fallback to default SVG if blank
+      let fishImageData = isCanvasBlank(canvas) 
+        ? createSVGDataURL(currentColor)
+        : canvas.toDataURL('image/png');
+
+      const newFish = {
+        id: Date.now(),
+        name,
+        message,
+        image: fishImageData,
+        x: Math.random() * (window.innerWidth - 120) + 20,
+        y: Math.random() * (window.innerHeight - 250) + 100,
+        speed: Math.random() * 0.8 + 0.8,
+        direction: Math.random() > 0.5 ? 1 : -1,
+        waveOffset: Math.random() * 100
+      };
+
+      fishes.push(newFish);
+      localStorage.setItem('birthday_fishes', JSON.stringify(fishes));
+      renderFishes();
+      closeModal('addModal');
+
+      document.getElementById('inputName').value = '';
+      document.getElementById('inputMessage').value = '';
+      clearCanvas();
+    };
+
+    // Init
+    createBubbles();
+    renderFishes();
+    animate();
+  </script>
+</body>
+</html>
