@@ -1,2 +1,2 @@
 # danilBirthday
-hella vibecoded icl 
+simple birthday website thing
