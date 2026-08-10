@@ -8,7 +8,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
-      --bg-color: #0f172a;
+  /* Lighter ocean gradient colors */
+      --bg-top: #3a946e;
+--bg-bottom: #095379;
+      
       --modal-bg: #1e293b;
       --border-color: #334155;
       --text-main: #f8fafc;
@@ -27,7 +30,7 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background: var(--bg-color);
+      background: linear-gradient(to bottom, var(--bg-top), var(--bg-bottom));
       color: var(--text-main);
       position: relative;
     }
