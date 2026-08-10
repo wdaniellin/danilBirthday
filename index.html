@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Damoez's Birthday Aquarium</title>
+  <!-- Supabase Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg-color: #0f172a;
@@ -333,7 +335,7 @@
       <div class="form-group">
         <label>Fish Size: <span id="scaleValue" style="color: var(--text-main);">1.0x</span></label>
         <div class="scale-control">
-          <input type="range" id="inputScale" min="0.5" max="2.0" step="0.1" value="1.0" oninput="document.getElementById('scaleValue').innerText = this.value + 'x'" />
+          <input type="range" id="inputScale" min="0.5" max="1.5" step="0.1" value="1.0" oninput="document.getElementById('scaleValue').innerText = this.value + 'x'" />
         </div>
       </div>
 
@@ -345,12 +347,20 @@
   </div>
 
   <script>
+    // -------------------------------------------------------------
+    // SUPABASE SETUP (Replace with your actual Supabase credentials)
+    // -------------------------------------------------------------
+    const SUPABASE_URL = "https://nulfrogaxsenrivayven.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51bGZyb2dheHNlbnJpdmF5dmVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzMTMxNzYsImV4cCI6MjEwMTg4OTE3Nn0.5u5znq1K_pHx9OcLVFgYUfxYVZ3yogUcyDMsfWt58lI";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     const aquarium = document.getElementById('aquarium');
     const canvas = document.getElementById('paintCanvas');
     const ctx = canvas.getContext('2d');
     
     let isDrawing = false;
     let currentColor = '#f97316';
+    let fishes = [];
 
     const drawZone = {
       x: 250,      // 25% of 1000px
@@ -445,11 +455,50 @@
       return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
     }
 
-    let fishes = JSON.parse(localStorage.getItem('birthday_fishes')) || [
-      { id: 1, name: "Sam", message: "Happy Birthday! Hope your year is amazing! 🥳", image: createSVGDataURL("#f97316"), scale: 1.0, x: 100, y: 150, speed: 1.2, direction: 1, waveOffset: Math.random() * 100 },
-      { id: 2, name: "Jordan", message: "Wish I could party with you today! Have a blast!", image: createSVGDataURL("#06b6d4"), scale: 1.2, x: 300, y: 300, speed: 0.8, direction: -1, waveOffset: Math.random() * 100 },
-      { id: 3, name: "Taylor", message: "Another year wiser! Keep shining ⭐", image: createSVGDataURL("#a855f7"), scale: 0.8, x: 500, y: 200, speed: 1.5, direction: 1, waveOffset: Math.random() * 100 }
-    ];
+    // Load initial fish data from Supabase DB
+    async function fetchFishes() {
+      const { data, error } = await supabaseClient.from('fishes').select('*');
+      if (error) {
+        console.error('Error fetching fishes:', error);
+        return;
+      }
+      fishes = data.map(f => ({
+        id: f.id,
+        name: f.name,
+        message: f.message,
+        image: f.image,
+        scale: f.scale,
+        x: f.x,
+        y: f.y,
+        speed: f.speed,
+        direction: f.direction,
+        waveOffset: f.wave_offset
+      }));
+      renderFishes();
+    }
+
+    // Realtime subscription so friends' fish pop up live across devices
+    function subscribeToRealtime() {
+      supabaseClient
+        .channel('public:fishes')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'fishes' }, payload => {
+          const newF = payload.new;
+          fishes.push({
+            id: newF.id,
+            name: newF.name,
+            message: newF.message,
+            image: newF.image,
+            scale: newF.scale,
+            x: newF.x,
+            y: newF.y,
+            speed: newF.speed,
+            direction: newF.direction,
+            waveOffset: newF.wave_offset
+          });
+          renderFishes();
+        })
+        .subscribe();
+    }
 
     function renderFishes() {
       aquarium.querySelectorAll('.fish-wrapper').forEach(el => el.remove());
@@ -536,7 +585,8 @@
       return c.toDataURL() === blank.toDataURL();
     }
 
-    document.getElementById('submitFishBtn').onclick = () => {
+    // Submit Wish & Save to Supabase
+    document.getElementById('submitFishBtn').onclick = async () => {
       const name = document.getElementById('inputName').value.trim();
       const message = document.getElementById('inputMessage').value.trim();
       const scale = parseFloat(document.getElementById('inputScale').value) || 1.0;
@@ -565,8 +615,7 @@
         fishImageData = tempCanvas.toDataURL('image/png');
       }
 
-      const newFish = {
-        id: Date.now(),
+      const newFishData = {
         name,
         message,
         image: fishImageData,
@@ -575,12 +624,16 @@
         y: Math.random() * (window.innerHeight - 300) + 150,
         speed: Math.random() * 0.8 + 0.8,
         direction: Math.random() > 0.5 ? 1 : -1,
-        waveOffset: Math.random() * 100
+        wave_offset: Math.random() * 100
       };
 
-      fishes.push(newFish);
-      localStorage.setItem('birthday_fishes', JSON.stringify(fishes));
-      renderFishes();
+      const { error } = await supabaseClient.from('fishes').insert([newFishData]);
+      if (error) {
+        alert('Error saving fish to Supabase. Please check your credentials.');
+        console.error(error);
+        return;
+      }
+
       closeModal('addModal');
 
       document.getElementById('inputName').value = '';
@@ -591,7 +644,8 @@
     };
 
     createBubbles();
-    renderFishes();
+    fetchFishes();
+    subscribeToRealtime();
     animate();
   </script>
 </body>
